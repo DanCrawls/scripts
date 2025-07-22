@@ -13,10 +13,10 @@ echo "Step 3: Initializing and populating pacman keyring"
 pacman-key --init
 pacman-key --populate archlinux
 
-pacman -Sy archlinux-keyring
+pacman -Sy archlinux-keyring --noconfirm
 
 echo "Performing System Update"
-pacman -Syu
+pacman -Syu --noconfirm
 
 echo "Adding Users & Groups"
 useradd -m admin
@@ -27,6 +27,6 @@ passwd admin
 groupadd media
 usermod -aG media,wheel,storage,video,audio,network,optical admin
 
-pacman -S sudo
+pacman -S sudo --noconfirm
 
 echo "Sudo is now installed. Please run visudo and uncomment wheel permissions."
