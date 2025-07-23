@@ -62,48 +62,58 @@ systemctl status jackett.service || true
 cd -
 
 echo -e "\n==> Jackett installed. Visit: http://127.0.0.1:9117"
-echo "==> Fixing SABnzbd service setup and config..."
+echo "==> Fully overriding sabnzbd.service to set correct user/group/umask..."
 
-# Set these as variables
-USER_NAME="sabnzbd"  # Change this if needed
+# Define variables
+USER_NAME="sabnzbd"        # replace with your actual username if variable already defined
 GROUP_NAME="media"
 SAB_CONFIG="/var/lib/sabnzbd/sabnzbd.ini"
 
-echo "==> Creating SABnzbd config directory and setting permissions..."
+# Make sure the config directory exists and is accessible
 sudo mkdir -p /var/lib/sabnzbd
 sudo chown -R "$USER_NAME:$GROUP_NAME" /var/lib/sabnzbd
 sudo chmod -R 775 /var/lib/sabnzbd
 
-echo "==> Creating systemd override for SABnzbd..."
-SAB_OVERRIDE_DIR="/etc/systemd/system/sabnzbd.service.d"
-sudo mkdir -p "$SAB_OVERRIDE_DIR"
+# Copy original unit file to /etc/systemd/system to override fully
+if [ -f /lib/systemd/system/sabnzbd.service ]; then
+  echo "-> Copying original sabnzbd.service to /etc/systemd/system/"
+  sudo cp /lib/systemd/system/sabnzbd.service /etc/systemd/system/sabnzbd.service
+else
+  echo "!! Original sabnzbd.service not found in /lib/systemd/system/. Please locate and adjust this path."
+fi
 
-sudo tee "$SAB_OVERRIDE_DIR/override.conf" > /dev/null <<EOF
-[Service]
-User=$USER_NAME
-Group=$GROUP_NAME
-UMask=002
-ExecStart=
-ExecStart=/usr/lib/sabnzbd/SABnzbd.py --logging 0 --config-file /var/lib/sabnzbd/sabnzbd.ini
-EOF
+# Replace relevant lines in the unit file
+sudo sed -i "s|^User=.*|User=$USER_NAME|" /etc/systemd/system/sabnzbd.service
+sudo sed -i "s|^Group=.*|Group=$GROUP_NAME|" /etc/systemd/system/sabnzbd.service
 
-echo "==> Reloading systemd and restarting SABnzbd..."
+# Insert UMask=002 if not already present
+if ! grep -q "^UMask=" /etc/systemd/system/sabnzbd.service; then
+  sudo sed -i "/^\[Service\]/a UMask=002" /etc/systemd/system/sabnzbd.service
+else
+  sudo sed -i "s|^UMask=.*|UMask=002|" /etc/systemd/system/sabnzbd.service
+fi
+
+# Reload and restart
+echo "-> Reloading systemd and restarting sabnzbd.service"
 sudo systemctl daemon-reexec
 sudo systemctl daemon-reload
 sudo systemctl restart sabnzbd.service
 
-echo "==> Setting SABnzbd to listen on all interfaces (0.0.0.0)..."
+# Ensure SABnzbd listens on all interfaces (0.0.0.0)
 if [ -f "$SAB_CONFIG" ]; then
+  echo "-> Setting SABnzbd to listen on 0.0.0.0"
   if grep -q "^host *=.*" "$SAB_CONFIG"; then
     sudo sed -i 's/^host *=.*/host = 0.0.0.0/' "$SAB_CONFIG"
   else
     echo "host = 0.0.0.0" | sudo tee -a "$SAB_CONFIG"
   fi
 else
-  echo "!! Config file not found at $SAB_CONFIG. SABnzbd may not have initialized yet."
+  echo "!! Config file not found at $SAB_CONFIG (SAB may not have started once yet)"
 fi
 
 sudo systemctl restart sabnzbd.service
+
+echo "==> SABnzbd should now be running under user '$USER_NAME', group '$GROUP_NAME', with umask 002."
 
 echo "==> SABnzbd service status:"
 systemctl status sabnzbd.service --no-pager || true
