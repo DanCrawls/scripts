@@ -213,6 +213,38 @@ sudo systemctl start deezerdl.service
 echo "==> Deezer Downloader service status:"
 systemctl status deezerdl.service || true
 
+echo "==> Forcing Deezer Downloader web interface to listen on 0.0.0.0..."
+
+if grep -q "^\[http\]" "$DEEZER_DIR/config.ini"; then
+  # Modify host line only inside the [http] section
+  sed -i '/^\[http\]/,/^\[.*\]/ s/^host *=.*/host = 0.0.0.0/' "$DEEZER_DIR/config.ini"
+else
+  echo -e "\n[http]\nhost = 0.0.0.0" >> "$DEEZER_DIR/config.ini"
+fi
+
+sudo systemctl restart deezerdl.service
+
+echo "==> Configuring Navidrome..."
+echo "Default media directory will be set to /dev/null. Please edit /etc/navidrome/navidrome.toml and set your own media dir."
+
+sudo systemctl start navidrome
+
+sudo tee /etc/navidrome/navidrome.toml > /dev/null <<EOF
+# This is just an example! Please see available options to customize Navidrome for your needs at
+# https://www.navidrome.org/docs/usage/configuration-options/#available-options
+
+LogLevel = 'DEBUG'
+Scanner.Schedule = '@every 24h'
+TranscodingCacheSize = '150MiB'
+MusicFolder = '/dev/null'
+TranscodingEnabled = true
+TranscodingQuality = 4  # (range 1-10, lower = better quality but larger files)
+EOF
+
+echo "==> Navidrome configuration updated."
+
+sudo systemctl restart navidrome
+
 echo "==> Enabling and starting all media-related services..."
 
 SERVICES=(
@@ -225,6 +257,7 @@ SERVICES=(
   sonarr.service
   lidarr.service
   jellyseerr.service
+  navidrome.service
 )
 
 for service in "${SERVICES[@]}"; do
