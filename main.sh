@@ -64,49 +64,49 @@ cd -
 echo -e "\n==> Jackett installed. Visit: http://127.0.0.1:9117"
 echo "==> Fixing SABnzbd service setup and config..."
 
-# Define user/group and config file location
-USER_NAME="admin"          # replace with your actual username variable if needed
+# Set these as variables
+USER_NAME="sabnzbd"  # Change this if needed
 GROUP_NAME="media"
 SAB_CONFIG="/var/lib/sabnzbd/sabnzbd.ini"
 
-# Ensure config directory exists and is owned properly
+echo "==> Creating SABnzbd config directory and setting permissions..."
 sudo mkdir -p /var/lib/sabnzbd
-sudo chown -R "sabnzbd:$GROUP_NAME" /var/lib/sabnzbd
+sudo chown -R "$USER_NAME:$GROUP_NAME" /var/lib/sabnzbd
 sudo chmod -R 775 /var/lib/sabnzbd
 
-# Create systemd override directory
+echo "==> Creating systemd override for SABnzbd..."
 SAB_OVERRIDE_DIR="/etc/systemd/system/sabnzbd.service.d"
 sudo mkdir -p "$SAB_OVERRIDE_DIR"
 
-# Write override.conf with explicit ExecStart, User, Group, and UMask
 sudo tee "$SAB_OVERRIDE_DIR/override.conf" > /dev/null <<EOF
 [Service]
-User=sabnzbd
+User=$USER_NAME
 Group=$GROUP_NAME
 UMask=002
+ExecStart=
+ExecStart=/usr/lib/sabnzbd/SABnzbd.py --logging 0 --config-file /var/lib/sabnzbd/sabnzbd.ini
 EOF
 
-# Reload systemd daemon and restart service
-echo "-> Reloading systemd daemon and restarting sabnzbd.service"
+echo "==> Reloading systemd and restarting SABnzbd..."
+sudo systemctl daemon-reexec
 sudo systemctl daemon-reload
 sudo systemctl restart sabnzbd.service
 
-# Update SABnzbd config to listen on 0.0.0.0
+echo "==> Setting SABnzbd to listen on all interfaces (0.0.0.0)..."
 if [ -f "$SAB_CONFIG" ]; then
-  echo "-> Setting SABnzbd to listen on 0.0.0.0"
   if grep -q "^host *=.*" "$SAB_CONFIG"; then
     sudo sed -i 's/^host *=.*/host = 0.0.0.0/' "$SAB_CONFIG"
   else
     echo "host = 0.0.0.0" | sudo tee -a "$SAB_CONFIG"
   fi
 else
-  echo "!! Warning: SABnzbd config file not found at $SAB_CONFIG, skipping host update"
+  echo "!! Config file not found at $SAB_CONFIG. SABnzbd may not have initialized yet."
 fi
 
 sudo systemctl restart sabnzbd.service
 
-# Show status for feedback
-sudo systemctl status sabnzbd.service --no-pager
+echo "==> SABnzbd service status:"
+systemctl status sabnzbd.service --no-pager || true
 
 
 
