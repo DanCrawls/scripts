@@ -99,19 +99,28 @@ sudo systemctl daemon-reexec
 sudo systemctl daemon-reload
 sudo systemctl restart sabnzbd.service
 
-# Ensure SABnzbd listens on all interfaces (0.0.0.0)
-if [ -f "$SAB_CONFIG" ]; then
-  echo "-> Setting SABnzbd to listen on 0.0.0.0"
-  if grep -q "^host *=.*" "$SAB_CONFIG"; then
-    sudo sed -i 's/^host *=.*/host = 0.0.0.0/' "$SAB_CONFIG"
-  else
-    echo "host = 0.0.0.0" | sudo tee -a "$SAB_CONFIG"
+echo "==> Starting SABnzbd briefly to generate config..."
+
+# Wait up to 10 seconds for config to be created
+for i in {1..10}; do
+  if [ -f "$SAB_CONFIG" ]; then
+    echo "-> Found sabnzbd.ini at $SAB_CONFIG"
+    break
   fi
+  echo "-> Waiting for sabnzbd.ini to be created... ($i)"
+  sleep 1
+done
+
+if [ -f "$SAB_CONFIG" ]; then
+  echo "-> Updating SABnzbd to listen on 0.0.0.0"
+  sudo sed -i 's/^host *=.*/host = 0.0.0.0/' "$SAB_CONFIG" || \
+  echo "host = 0.0.0.0" | sudo tee -a "$SAB_CONFIG"
 else
-  echo "!! Config file not found at $SAB_CONFIG (SAB may not have started once yet)"
+  echo "!! Config file still not found after waiting — skipping host modification"
 fi
 
 sudo systemctl restart sabnzbd.service
+
 
 echo "==> SABnzbd should now be running under user '$USER_NAME', group '$GROUP_NAME', with umask 002."
 
