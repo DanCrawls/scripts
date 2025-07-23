@@ -47,7 +47,8 @@ yay -S --noconfirm \
   radarr-bin \
   sonarr-bin \
   jellyseerr \
-  lidarr-bin
+  lidarr-bin \
+  whisparr-bin
 
 echo "==> Installing Jackett..."
 cd /opt
